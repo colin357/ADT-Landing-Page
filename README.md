@@ -74,8 +74,8 @@ Copy `.env.example` to `.env.local` to set the webhook locally.
 
 ## Before going live
 
-- Replace the placeholder phone number `(800) 555-1234` (`app/page.tsx`,
-  `components/LeadForm.tsx`).
+- The click-to-call number is `(856) 347-9532` (`app/page.tsx`,
+  `components/LeadForm.tsx`) — update both files if it ever changes.
 - Replace the sample testimonials with real, attributable customer quotes.
 - Verify and attribute the 68% statistic, and confirm the 48-hour install claim matches
   what your dealer agreement supports.

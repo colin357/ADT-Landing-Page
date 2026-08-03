@@ -130,10 +130,10 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-4">
             <a
-              href="tel:+18005551234"
+              href="tel:+18563479532"
               className="hidden text-sm font-semibold text-white/90 hover:text-white sm:block"
             >
-              (800) 555-1234
+              (856) 347-9532
             </a>
             <a
               href="#quote"
@@ -324,10 +324,10 @@ export default function Home() {
                 the only expensive part.
               </p>
               <a
-                href="tel:+18005551234"
+                href="tel:+18563479532"
                 className="mt-8 inline-flex items-center gap-3 rounded-lg bg-white/10 px-5 py-3.5 font-bold text-white ring-1 ring-white/20 transition hover:bg-white/15"
               >
-                Or call now: (800) 555-1234
+                Or call now: (856) 347-9532
               </a>
             </div>
 

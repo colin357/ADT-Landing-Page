@@ -129,8 +129,8 @@ export default function LeadForm({ id = "quote" }: { id?: string }) {
         </p>
         <p className="mt-4 text-sm text-ink-soft">
           Didn&rsquo;t mean to submit that? Call us at{" "}
-          <a className="font-semibold text-brand underline" href="tel:+18005551234">
-            (800) 555-1234
+          <a className="font-semibold text-brand underline" href="tel:+18563479532">
+            (856) 347-9532
           </a>
           .
         </p>
