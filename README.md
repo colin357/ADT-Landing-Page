@@ -6,12 +6,29 @@ ready to deploy on Vercel.
 
 ## The goal
 
-Everything on the page drives to one form that collects four fields:
+Everything on the page drives to one two-step form.
+
+**Step 1 — contact details**
 
 - **Name**
 - **Phone number**
 - **Email address**
 - **ZIP code**
+
+**Step 2 — qualifying questions** (Yes/No each)
+
+- Are you a homeowner?
+- Do you have at least a 620 credit score?
+- Are you ready to install within 48 hours?
+
+Completing step 1 slides the card left and swipes step 2 in from the right (500ms
+easing, with the card height animating between panels so nothing jumps). A progress bar
+reads "Step 1 of 2", and a Back button returns to step 1 with every answer preserved.
+The off-screen panel is marked `inert`, so it's skipped by tab order and screen readers.
+Under `prefers-reduced-motion`, the transitions are disabled and the steps swap
+instantly.
+
+Nothing is sent until step 2 is submitted — one POST carries all seven answers.
 
 The form appears twice — in the hero (above the fold) and again in the closing CTA —
 plus sticky header buttons that scroll to it.
@@ -51,18 +68,27 @@ Payload shape:
   "email": "jordan@example.com",
   "phone": "5551234567",
   "zip": "30301",
+  "homeowner": true,
+  "creditScore620": true,
+  "readyToInstall48": false,
+  "qualified": false,
   "source": "adt-landing-page",
   "submittedAt": "2026-08-03T19:40:00.000Z"
 }
 ```
+
+The three answers arrive as booleans. `qualified` is a convenience flag — true only when
+all three are Yes — so your CRM can route hot leads straight to a closer.
 
 Copy `.env.example` to `.env.local` to set the webhook locally.
 
 ### Validation and spam
 
 - Client-side validation with inline errors; phone auto-formats as `(555) 123-4567`.
+  Step 1 won't advance until all four contact fields pass.
 - The same rules run again server-side (`lib/validation.ts`) — the API never trusts the
-  client.
+  client. A 422 carries `errors` (contact) and `qualifierErrors` (questions) separately,
+  and the form jumps back to step 1 if the contact errors are the ones that failed.
 - A hidden honeypot field silently discards naive bot submissions.
 
 ## Deploying to Vercel
@@ -94,7 +120,10 @@ app/
   icon.svg            favicon
   api/lead/route.ts   lead intake endpoint
 components/
-  LeadForm.tsx        the four-field form + success state
+  LeadForm.tsx        two-step sliding form + success state
 lib/
-  validation.ts       shared client/server validation
+  validation.ts       shared client/server validation + question definitions
 ```
+
+The three step-2 questions live in `QUALIFIER_FIELDS` in `lib/validation.ts` — edit,
+reorder, or add to that array and both the form and the server-side check follow.

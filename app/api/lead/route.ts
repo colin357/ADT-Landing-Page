@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { normalizeLead, validateLead, type LeadInput } from "@/lib/validation";
+import {
+  normalizeLead,
+  validateLead,
+  validateQualifiers,
+  type LeadSubmission,
+} from "@/lib/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,7 +15,7 @@ export const dynamic = "force-dynamic";
  * hook, or anything else that accepts a JSON POST.
  */
 export async function POST(request: Request) {
-  let body: Partial<LeadInput> & { company?: string };
+  let body: Partial<LeadSubmission> & { company?: string };
 
   try {
     body = await request.json();
@@ -24,12 +29,21 @@ export async function POST(request: Request) {
   }
 
   const errors = validateLead(body);
-  if (Object.keys(errors).length > 0) {
-    return NextResponse.json({ ok: false, errors }, { status: 422 });
+  const qualifierErrors = validateQualifiers(body);
+  if (Object.keys(errors).length > 0 || Object.keys(qualifierErrors).length > 0) {
+    return NextResponse.json(
+      { ok: false, errors, qualifierErrors },
+      { status: 422 },
+    );
   }
 
+  const normalized = normalizeLead(body as LeadSubmission);
   const lead = {
-    ...normalizeLead(body as LeadInput),
+    ...normalized,
+    // True only when all three qualifying answers are Yes — lets the CRM route
+    // hot leads straight to a closer.
+    qualified:
+      normalized.homeowner && normalized.creditScore620 && normalized.readyToInstall48,
     source: "adt-landing-page",
     submittedAt: new Date().toISOString(),
   };
