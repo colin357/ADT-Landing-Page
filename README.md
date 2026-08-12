@@ -54,11 +54,14 @@ Other scripts: `npm run build`, `npm run start`, `npm run lint`.
 
 ## Where leads go
 
-`POST /api/lead` validates the submission server-side, then:
+`POST /api/lead` validates the submission server-side, then forwards the lead as JSON
+to a Zapier catch hook. The destination is the `DEFAULT_LEAD_WEBHOOK` constant in
+`app/api/lead/route.ts`; setting the `LEAD_WEBHOOK_URL` environment variable overrides
+it, so a staging deploy can point somewhere else without a code change.
 
-- if `LEAD_WEBHOOK_URL` is set, forwards the lead as JSON to that URL (CRM, Zapier,
-  Make, Slack workflow, anything that accepts a JSON POST);
-- otherwise, logs the lead so it shows up in Vercel's runtime logs.
+If the webhook is unreachable or returns a non-2xx, the API responds `502`, the form
+shows a retry message, and the full lead is written to the runtime logs (prefixed
+`LEAD WEBHOOK FAILED` / `LEAD WEBHOOK REJECTED`) so it can be recovered by hand.
 
 Payload shape:
 
@@ -80,7 +83,8 @@ Payload shape:
 The three answers arrive as booleans. `qualified` is a convenience flag — true only when
 all three are Yes — so your CRM can route hot leads straight to a closer.
 
-Copy `.env.example` to `.env.local` to set the webhook locally.
+Local dev posts to the same live hook. Copy `.env.example` to `.env.local` and set
+`LEAD_WEBHOOK_URL` if you'd rather send test submissions somewhere else.
 
 ### Validation and spam
 
@@ -95,8 +99,9 @@ Copy `.env.example` to `.env.local` to set the webhook locally.
 
 1. Push this branch and import the repo at [vercel.com/new](https://vercel.com/new).
 2. Framework preset auto-detects as **Next.js** — no build settings to change.
-3. Optionally add the `LEAD_WEBHOOK_URL` environment variable under
-   Settings → Environment Variables, then redeploy.
+3. No environment variables are required — leads flow to the Zapier hook out of the
+   box. To redirect a deployment, add `LEAD_WEBHOOK_URL` under
+   Settings → Environment Variables and redeploy.
 
 ## Before going live
 
