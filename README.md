@@ -86,6 +86,66 @@ all three are Yes — so your CRM can route hot leads straight to a closer.
 Local dev posts to the same live hook. Copy `.env.example` to `.env.local` and set
 `LEAD_WEBHOOK_URL` if you'd rather send test submissions somewhere else.
 
+## Meta Conversions API
+
+Every successful submission also fires a server-side **Lead** event to the Meta
+Conversions API (`lib/meta-capi.ts`). It runs after the lead has been handed to the
+webhook, and it is strictly best-effort — a Meta outage, a bad token, or a missing
+Pixel ID never turns a captured lead into an error for the visitor. Failures are
+logged as `META CAPI LEAD FAILED` with the event ID and the reason.
+
+Nothing is sent unless both `META_PIXEL_ID` and `META_CAPI_ACCESS_TOKEN` are set, so
+local dev and preview deploys stay silent by default.
+
+### Parameters sent
+
+| Event parameter | Value |
+| --- | --- |
+| `event_name` | `Lead` |
+| `event_time` | Unix seconds at send time |
+| `event_id` | UUID generated in the browser, sent with the lead |
+| `event_source_url` | `window.location.href`, falling back to the `Referer` header |
+| `action_source` | `website` |
+| `opt_out` | `META_CAPI_OPT_OUT` (default `false`) |
+| `data_processing_options` | `["LDU"]` when `META_CAPI_LDU=true`, otherwise `[]` |
+| `data_processing_options_country` | `META_CAPI_LDU_COUNTRY` (default `0`) |
+| `data_processing_options_state` | `META_CAPI_LDU_STATE` (default `0`) |
+
+| Customer parameter | Normalization before SHA-256 |
+| --- | --- |
+| `em` (email) | trimmed, lowercased |
+| `ph` (phone) | digits only, `1` country code prepended |
+| `fn` (first name) | first whitespace-separated token, lowercased, letters only |
+| `ln` (last name) | remaining tokens, lowercased, letters only |
+| `zp` (ZIP) | 5 digits |
+| `client_user_agent` | **not hashed** — sent in the clear, per Meta's spec |
+
+All five customer fields are SHA-256 hex digests; raw PII never leaves the server.
+`0`/`0` for the LDU country and state asks Meta to geolocate the user and apply the
+right state's rules automatically.
+
+`event_id` is generated in the browser and returned in the API response. Nothing uses
+it yet, but if a browser Pixel is ever added to the page it should fire
+`fbq('track', 'Lead', {}, { eventID })` with that same value so Meta deduplicates the
+browser and server events into one.
+
+### Testing it
+
+Set `META_TEST_EVENT_CODE` to the code from Events Manager → **Test events**, submit
+the form, and the event appears there instead of in production. Unset it when you're
+done. Match quality is visible under Events Manager → your dataset → **Overview**.
+
+### Setup
+
+1. Events Manager → **Data sources** → your dataset → **Settings** → copy the dataset
+   (Pixel) ID into `META_PIXEL_ID`.
+2. Generate a Conversions API access token on the same Settings page, or use a system
+   user token with the `ads_management` scope, and put it in `META_CAPI_ACCESS_TOKEN`.
+3. Add both under Vercel → Settings → **Environment Variables**, then redeploy.
+
+Enable `META_CAPI_LDU` if you need CCPA/CPRA Limited Data Use handling — talk to
+counsel about whether your traffic requires it.
+
 ### Validation and spam
 
 - Client-side validation with inline errors; phone auto-formats as `(555) 123-4567`.
@@ -99,9 +159,10 @@ Local dev posts to the same live hook. Copy `.env.example` to `.env.local` and s
 
 1. Push this branch and import the repo at [vercel.com/new](https://vercel.com/new).
 2. Framework preset auto-detects as **Next.js** — no build settings to change.
-3. No environment variables are required — leads flow to the Zapier hook out of the
-   box. To redirect a deployment, add `LEAD_WEBHOOK_URL` under
-   Settings → Environment Variables and redeploy.
+3. Leads flow to the Zapier hook out of the box with no environment variables. Add
+   `META_PIXEL_ID` and `META_CAPI_ACCESS_TOKEN` under Settings → Environment
+   Variables to turn on Conversions API events, and `LEAD_WEBHOOK_URL` to redirect a
+   deployment somewhere else. Redeploy after either change.
 
 ## Before going live
 
@@ -128,6 +189,7 @@ components/
   LeadForm.tsx        two-step sliding form + success state
 lib/
   validation.ts       shared client/server validation + question definitions
+  meta-capi.ts        Meta Conversions API Lead events (hashing + send)
 ```
 
 The three step-2 questions live in `QUALIFIER_FIELDS` in `lib/validation.ts` — edit,

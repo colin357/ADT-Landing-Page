@@ -17,6 +17,15 @@ import {
 
 const EMPTY: LeadInput = { name: "", email: "", phone: "", zip: "" };
 
+/** Deduplication key for the Meta Lead event. randomUUID needs a secure
+ *  context, so fall back to a random string on plain http (local dev). */
+function newEventId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `lead-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
 type Status = "idle" | "submitting" | "success";
 
 const FIELDS = [
@@ -129,7 +138,15 @@ export default function LeadForm({ id = "quote" }: { id?: string }) {
       const res = await fetch("/api/lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...values, ...qualifiers, company }),
+        body: JSON.stringify({
+          ...values,
+          ...qualifiers,
+          company,
+          // Shared with the server-side Meta Lead event so a browser Pixel, if
+          // one is ever added, can fire the same eventID and be deduplicated.
+          eventId: newEventId(),
+          pageUrl: window.location.href,
+        }),
       });
       const data = await res.json().catch(() => ({}));
 
