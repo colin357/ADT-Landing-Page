@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { coerceEventId, sendLeadEvent, splitName } from "@/lib/meta-capi";
 import {
   normalizeLead,
   validateLead,
@@ -22,7 +23,11 @@ const DEFAULT_LEAD_WEBHOOK = "https://hooks.zapier.com/hooks/catch/17690982/4673
  * the full lead is written to the runtime logs so it can be recovered by hand.
  */
 export async function POST(request: Request) {
-  let body: Partial<LeadSubmission> & { company?: string };
+  let body: Partial<LeadSubmission> & {
+    company?: string;
+    eventId?: string;
+    pageUrl?: string;
+  };
 
   try {
     body = await request.json();
@@ -81,5 +86,28 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ ok: true });
+  // The lead is safely handed off; everything below is measurement and must
+  // never turn a captured lead into an error for the visitor.
+  const eventId = coerceEventId(body.eventId);
+  const { first, last } = splitName(normalized.name);
+
+  const meta = await sendLeadEvent({
+    eventId,
+    // The form sends the page it was submitted from; Referer is the fallback.
+    eventSourceUrl: body.pageUrl ?? request.headers.get("referer") ?? undefined,
+    clientUserAgent: request.headers.get("user-agent") ?? undefined,
+    email: normalized.email,
+    phone: normalized.phone,
+    firstName: first,
+    lastName: last,
+    zip: normalized.zip,
+  });
+
+  if (!meta.ok) {
+    console.error("META CAPI LEAD FAILED", meta.eventId, meta.reason);
+  }
+
+  // Returned so a browser Pixel can fire the same Lead with this eventID and
+  // be deduplicated against the server event.
+  return NextResponse.json({ ok: true, eventId });
 }
