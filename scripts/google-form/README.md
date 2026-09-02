@@ -36,8 +36,11 @@ Booleans are written to the form as `Yes` / `No`, the phone is formatted as
    to match your form. Any field with no matching question is skipped, not an
    error.)
 3. Paste the form ID into `FORM_ID`.
-4. Set `SHARED_SECRET` to a long random string. Recommended — the deployed URL
-   is public, and without a secret anyone who has it can file responses.
+4. Optional: set `SHARED_SECRET` to a long random string, and append
+   `?token=THAT_VALUE` to the URL in `app/api/lead/route.ts`. The deployed URL
+   has to be world-accessible for the site to post to it, so without a secret
+   anyone who has the URL can file responses. The current deployment runs
+   without one.
 5. **Deploy → New deployment → Web app**, with:
    - Execute as: **Me**
    - Who has access: **Anyone**
@@ -46,19 +49,17 @@ Booleans are written to the form as `Yes` / `No`, the phone is formatted as
 
 ## Pointing the site at it
 
-Set one environment variable in the deployment (Vercel → Settings → Environment
-Variables):
-
-```
-GOOGLE_FORM_WEBHOOK_URL=https://script.google.com/macros/s/AKfy.../exec?token=YOUR_SHARED_SECRET
-```
+The live deployment URL is hardcoded as `GOOGLE_FORM_WEBHOOK` in
+`app/api/lead/route.ts`. Nothing to configure.
 
 `app/api/lead/route.ts` posts each lead there *after* the existing CRM webhook
 succeeds. If the Form call fails it is logged (`GOOGLE FORM REJECTED` /
 `GOOGLE FORM FAILED`) and the visitor still sees a successful submit — the CRM
 already has the lead, so a Form outage must never turn one away.
 
-Leave `GOOGLE_FORM_WEBHOOK_URL` unset and nothing changes.
+If you ever replace the deployment (**Deploy → New deployment**, rather than a
+new version of the existing one), the URL changes and that constant needs
+updating to match.
 
 ## Notes
 

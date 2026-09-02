@@ -19,8 +19,18 @@ export const dynamic = "force-dynamic";
 const DEFAULT_LEAD_WEBHOOK = "https://hooks.zapier.com/hooks/catch/17690982/4673aeq/";
 
 /**
- * Accepts a lead and hands it off to the webhook above. If the handoff fails,
- * the full lead is written to the runtime logs so it can be recovered by hand.
+ * Apps Script web app that files each lead as a Google Form response. The
+ * script itself lives in scripts/google-form/Code.gs. Re-deploying that script
+ * as a new version keeps this URL, so it only changes if the deployment is
+ * replaced outright.
+ */
+const GOOGLE_FORM_WEBHOOK =
+  "https://script.google.com/macros/s/AKfycbzPZGQQVQy17sCKeQw5hYu_pWDuTyU7MVsIvbqt064xaif4piSm-y8qrtcEAf8TWAdk8w/exec";
+
+/**
+ * Accepts a lead, hands it off to the CRM webhook, then mirrors it into the
+ * Google Form. If the CRM handoff fails, the full lead is written to the
+ * runtime logs so it can be recovered by hand.
  */
 export async function POST(request: Request) {
   let body: Partial<LeadSubmission> & {
@@ -86,28 +96,24 @@ export async function POST(request: Request) {
     );
   }
 
-  // Mirror the lead into the Google Form when GOOGLE_FORM_WEBHOOK_URL points at
-  // the Apps Script web app in scripts/google-form. The CRM handoff above has
-  // already succeeded by this point, so a Form outage is logged, never surfaced
-  // to the visitor and never a reason to drop a captured lead.
-  const formWebhook = process.env.GOOGLE_FORM_WEBHOOK_URL;
-  if (formWebhook) {
-    try {
-      const res = await fetch(formWebhook, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(lead),
-        signal: AbortSignal.timeout(10_000),
-      });
-      // Apps Script answers 200 even when it couldn't file the response, so the
-      // ok flag in its JSON body is the real result.
-      const result = (await res.json().catch(() => null)) as { ok?: boolean } | null;
-      if (!res.ok || !result?.ok) {
-        console.error("GOOGLE FORM REJECTED", res.status, JSON.stringify(result));
-      }
-    } catch (err) {
-      console.error("GOOGLE FORM FAILED", err, JSON.stringify(lead));
+  // Mirror the lead into the Google Form. The CRM handoff above has already
+  // succeeded by this point, so a Form outage is logged, never surfaced to the
+  // visitor and never a reason to drop a captured lead.
+  try {
+    const formRes = await fetch(GOOGLE_FORM_WEBHOOK, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(lead),
+      signal: AbortSignal.timeout(10_000),
+    });
+    // Apps Script answers 200 even when it couldn't file the response, so the
+    // ok flag in its JSON body is the real result.
+    const formResult = (await formRes.json().catch(() => null)) as { ok?: boolean } | null;
+    if (!formRes.ok || !formResult?.ok) {
+      console.error("GOOGLE FORM REJECTED", formRes.status, JSON.stringify(formResult));
     }
+  } catch (err) {
+    console.error("GOOGLE FORM FAILED", err, JSON.stringify(lead));
   }
 
   // The lead is safely handed off; everything below is measurement and must
